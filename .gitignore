@@ -26,3 +26,10 @@
 *.exe
 *.out
 *.app
+*.asm
+*.asm
+*.asm
+*.hex
+*.lkr
+*.lst
+*.map
