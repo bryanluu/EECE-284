@@ -20,6 +20,47 @@
 #define LCD_D0 P2_4
 #define CHARS_PER_LINE 16
 
+// ==================MAIN FUNCTION===========================
+void main (void)
+{
+	Setup();
+	
+		
+	// LOOP	
+	while(1)
+	{
+		UpdateString();
+		//P3_0=0;
+		//Wait1S();
+		//P3_0=1;
+		//Wait1S();
+	}
+	
+}
+
+void Setup(void)
+{
+	InitPorts();
+	LCD_8BIT();
+	
+	InitSerialPort();
+	InitADC();
+}
+
+
+void UpdateString(void)
+{
+	char string1[17];
+	char string2[17];
+	sprintf(string1, "1: %i, 2: %i", AD1DAT0, AD1DAT1);
+	sprintf(string2, "3: %i, 4: %i", AD1DAT2, AD1DAT3);
+	LCDprint(string1,1,1);
+	LCDprint(string2,2,1);
+}
+
+
+// ================= Initialization Funcs ===================
+
 void InitPorts(void)
 {
 	P0M1=0;
@@ -32,57 +73,34 @@ void InitPorts(void)
 	P3M2=0;
 }
 
-void Wait50us (void)
+void InitSerialPort(void)
 {
-	_asm
-    mov R0, #82
-L0: djnz R0, L0 ; 2 machine cycles-> 2*0.27126us*92=50us
-    _endasm;
+	BRGCON=0x00; //Make sure the baud rate generator is off
+	BRGR1=((XTAL/BAUD)-16)/0x100;
+	BRGR0=((XTAL/BAUD)-16)%0x100;
+	BRGCON=0x03; //Turn-on the baud rate generator
+	SCON=0x52; //Serial port in mode 1, ren, txrdy, rxempty
+	P1M1=0x00; //Enable pins RxD and Txd
+	P1M2=0x00; //Enable pins RxD and Txd
 }
 
-void waitms (unsigned int ms)
+void InitADC(void)
 {
-	unsigned int j;
-	unsigned char k;
-	for(j=0; j<ms; j++)
-		for (k=0; k<20; k++) Wait50us();
+	// Set adc1 channel pins as input only 
+	P0M1 |= (P0M1_4 | P0M1_3 | P0M1_2 | P0M1_1);
+	P0M2 &= ~(P0M1_4 | P0M1_3 | P0M1_2 | P0M1_1);
+
+	BURST1=1; //Autoscan continuos conversion mode
+	ADMODB = CLK0; //ADC1 clock is 7.3728MHz/2
+	ADINS  = (ADI13|ADI12|ADI11|ADI10); // Select the four channels for conversion
+	ADCON1 = (ENADC1|ADCS10); //Enable the converter and start immediately
+	while((ADCI1&ADCON1)==0); //Wait for first conversion to complete
 }
 
-void LCD_pulse (void)
-{
-	LCD_E=1;
-	Wait50us();
-	LCD_E=0;
-}
 
-void LCD_byte (unsigned char x)
-{
-	// The accumulator in the C8051Fxxx is bit addressable!
-	ACC=x;
-	LCD_D7=ACC_7;
-	LCD_D6=ACC_6;
-	LCD_D5=ACC_5;
-	LCD_D4=ACC_4;
-	LCD_D3=ACC_3;
-	LCD_D2=ACC_2;
-	LCD_D1=ACC_1;
-	LCD_D0=ACC_0;
-	LCD_pulse();
-}
 
-void WriteData (unsigned char x)
-{
-	LCD_RS=1;
-	LCD_byte(x);
-	waitms(2);
-}
 
-void WriteCommand (unsigned char x)
-{
-	LCD_RS=0;
-	LCD_byte(x);
-	waitms(5);
-}
+// =============== LCD Funcs =============
 
 void LCD_8BIT (void)
 {
@@ -111,6 +129,66 @@ void LCDprint(char * string, unsigned char line, bit clear)
 	if(clear) for(; j<CHARS_PER_LINE; j++) WriteData(' '); // Clear the rest of the line
 }
 
+
+void LCD_pulse (void)
+{
+	LCD_E=1;
+	Wait50us();
+	LCD_E=0;
+}
+
+
+void LCD_byte (unsigned char x)
+{
+	// The accumulator in the C8051Fxxx is bit addressable!
+	ACC=x;
+	LCD_D7=ACC_7;
+	LCD_D6=ACC_6;
+	LCD_D5=ACC_5;
+	LCD_D4=ACC_4;
+	LCD_D3=ACC_3;
+	LCD_D2=ACC_2;
+	LCD_D1=ACC_1;
+	LCD_D0=ACC_0;
+	LCD_pulse();
+}
+
+
+void WriteData (unsigned char x)
+{
+	LCD_RS=1;
+	LCD_byte(x);
+	waitms(2);
+}
+
+void WriteCommand (unsigned char x)
+{
+	LCD_RS=0;
+	LCD_byte(x);
+	waitms(5);
+}
+
+
+// ======= Delay Funcs =======
+
+void Wait50us (void)
+{
+	_asm
+    mov R0, #82
+L0: djnz R0, L0 ; 2 machine cycles-> 2*0.27126us*92=50us
+    _endasm;
+}
+
+
+void waitms (unsigned int ms)
+{
+	unsigned int j;
+	unsigned char k;
+	for(j=0; j<ms; j++)
+		for (k=0; k<20; k++) Wait50us();
+}
+
+
 void Wait1S (void)
 {
 	_asm
@@ -123,58 +201,7 @@ L1: djnz R0, L1 ; 2 machine cycles-> 2*0.27126us*184=100us
     _endasm;
 }
 
-void InitSerialPort(void)
-{
-	BRGCON=0x00; //Make sure the baud rate generator is off
-	BRGR1=((XTAL/BAUD)-16)/0x100;
-	BRGR0=((XTAL/BAUD)-16)%0x100;
-	BRGCON=0x03; //Turn-on the baud rate generator
-	SCON=0x52; //Serial port in mode 1, ren, txrdy, rxempty
-	P1M1=0x00; //Enable pins RxD and Txd
-	P1M2=0x00; //Enable pins RxD and Txd
-}
-
-void InitADC(void)
-{
-	// Set adc1 channel pins as input only 
-	P0M1 |= (P0M1_4 | P0M1_3 | P0M1_2 | P0M1_1);
-	P0M2 &= ~(P0M1_4 | P0M1_3 | P0M1_2 | P0M1_1);
-
-	BURST1=1; //Autoscan continuos conversion mode
-	ADMODB = CLK0; //ADC1 clock is 7.3728MHz/2
-	ADINS  = (ADI13|ADI12|ADI11|ADI10); // Select the four channels for conversion
-	ADCON1 = (ENADC1|ADCS10); //Enable the converter and start immediately
-	while((ADCI1&ADCON1)==0); //Wait for first conversion to complete
-}
 
 
-void UpdateString(void)
-{
-	char string1[17];
-	char string2[17];
-	sprintf(string1, "1: %i, 2: %i", AD1DAT0, AD1DAT1);
-	sprintf(string2, "3: %i, 4: %i", AD1DAT2, AD1DAT3);
-	LCDprint(string1,1,1);
-	LCDprint(string2,2,1);
-}
 
 
-void main (void)
-{
-	InitPorts();
-	LCD_8BIT();
-	
-	InitSerialPort();
-	InitADC();
-	
-		
-	while(1)
-	{
-		UpdateString();
-		P3_0=0;
-		Wait1S();
-		P3_0=1;
-		Wait1S();
-	}
-	
-}
