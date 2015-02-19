@@ -20,17 +20,11 @@
 #define LCD_D0 P2_4
 #define CHARS_PER_LINE 16
 
-void InitPorts(void)
-{
-	P0M1=0;
-	P0M2=0;
-	P1M1=0;
-	P1M2=0;
-	P2M1=0;
-	P2M2=0;
-	P3M1=0;
-	P3M2=0;
-}
+/*
+		SCROLL TO BOTTOM FOR MAIN FUNCTIONS
+*/
+
+// ======= Delay Funcs =======
 
 void Wait50us (void)
 {
@@ -40,6 +34,7 @@ L0: djnz R0, L0 ; 2 machine cycles-> 2*0.27126us*92=50us
     _endasm;
 }
 
+
 void waitms (unsigned int ms)
 {
 	unsigned int j;
@@ -47,6 +42,21 @@ void waitms (unsigned int ms)
 	for(j=0; j<ms; j++)
 		for (k=0; k<20; k++) Wait50us();
 }
+
+
+void Wait1S (void)
+{
+	_asm
+	mov R2, #40
+L3: mov R1, #250
+L2: mov R0, #184
+L1: djnz R0, L1 ; 2 machine cycles-> 2*0.27126us*184=100us
+    djnz R1, L2 ; 100us*250=0.025s
+    djnz R2, L3 ; 0.025s*40=1s
+    _endasm;
+}
+
+// =============== LCD Funcs =============
 
 void LCD_pulse (void)
 {
@@ -111,17 +121,29 @@ void LCDprint(char * string, unsigned char line, bit clear)
 	if(clear) for(; j<CHARS_PER_LINE; j++) WriteData(' '); // Clear the rest of the line
 }
 
-void Wait1S (void)
+
+// ================= Initialization Funcs ===================
+
+void InitMotorPorts(void)
 {
-	_asm
-	mov R2, #40
-L3: mov R1, #250
-L2: mov R0, #184
-L1: djnz R0, L1 ; 2 machine cycles-> 2*0.27126us*184=100us
-    djnz R1, L2 ; 100us*250=0.025s
-    djnz R2, L3 ; 0.025s*40=1s
-    _endasm;
+	/*
+	P1M1.2=1; //Set pin 1.2 to be Open Drain
+	P1M2.2=1;
+	P1M1.3=1; //Set pin 1.3 to be Open Drain
+	P1M2.3=1;*/
 }
+
+void InitPorts(void)
+{
+	P0M1=0;
+	P0M2=0;
+	P1M1=0;
+	P1M2=0;
+	P2M1=0;
+	P2M2=0;
+	InitMotorPorts();
+}
+
 
 void InitSerialPort(void)
 {
@@ -148,6 +170,20 @@ void InitADC(void)
 }
 
 
+
+
+// ==================MAIN FUNCTION===========================
+
+void Setup(void)
+{
+	InitPorts();
+	LCD_8BIT();
+	
+	InitSerialPort();
+	InitADC();
+}
+
+
 void UpdateString(void)
 {
 	char string1[17];
@@ -158,23 +194,33 @@ void UpdateString(void)
 	LCDprint(string2,2,1);
 }
 
-
 void main (void)
 {
-	InitPorts();
-	LCD_8BIT();
-	
-	InitSerialPort();
-	InitADC();
+	Setup();
 	
 		
+	// LOOP	
 	while(1)
 	{
 		UpdateString();
-		P3_0=0;
+		P1_2=1; //Drive pin 1.2 to 5V (by OpenDrain)
 		Wait1S();
-		P3_0=1;
+		P1_2=0; //Drive pin 1.2 to LOW
 		Wait1S();
 	}
 	
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
