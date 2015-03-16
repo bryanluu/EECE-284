@@ -123,16 +123,6 @@ void LCDprint(char * string, unsigned char line, bit clear)
 
 
 // ================= Initialization Funcs ===================
-
-void InitMotorPorts(void)
-{
-	/*
-	P1M1.2=1; //Set pin 1.2 to be Open Drain
-	P1M2.2=1;
-	P1M1.3=1; //Set pin 1.3 to be Open Drain
-	P1M2.3=1;*/
-}
-
 void InitPorts(void)
 {
 	P0M1=0;
@@ -141,7 +131,8 @@ void InitPorts(void)
 	P1M2=0;
 	P2M1=0;
 	P2M2=0;
-	InitMotorPorts();
+	P3M1=0;
+	P3M2=0;
 }
 
 
@@ -203,9 +194,13 @@ void main (void)
 	while(1)
 	{
 		UpdateString();
-		P1_2=1; //Drive pin 1.2 to 5V (by OpenDrain)
+		P1_2=1; //Drive pin 1.2 to 3.3V
+		P3_0=1;
+		P3_1=1;
 		Wait1S();
 		P1_2=0; //Drive pin 1.2 to LOW
+		P3_0=0;
+		P3_1=0;
 		Wait1S();
 	}
 	
