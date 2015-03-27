@@ -37,9 +37,23 @@
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 
+// PID Settings
+#define Kp (0.4)
+#define Ki (0.0)
+#define Kd (0.2)
+
+// Driving Macros
+#define LEFT_ON (LEFT_SENSOR >= LEFT_THRESH)
+#define RIGHT_ON (RIGHT_SENSOR >= RIGHT_THRESH)
+#define LEFT_OFF (LEFT_SENSOR < LEFT_THRESH)
+#define RIGHT_OFF (RIGHT_SENSOR < RIGHT_THRESH)
+
+// Driving Settings
+#define BASE_SPEED (80)
+
 //Pins
-#define LEFT_PIN P3_0
-#define RIGHT_PIN P3_1
+#define LEFT_PIN P3_1
+#define RIGHT_PIN P3_0
 
 /*
 		SCROLL TO BOTTOM FOR MAIN FUNCTIONS
@@ -161,14 +175,14 @@ void LCDprint(char * string, unsigned char line, bit clear)
 
 // ------------ Variable Inits ------------
 int count=0;
+int LCDcount=0;
 int error = 0;
+int lastError = 0;
+int dT = 0;
+unsigned long lastPIDtime = 0;
 int dir = 0;
 int lastDir = 0;
-
-// Wire Following
-float Kp = 10;
-float Ki = 0;
-float Kd = 0; 
+int steerOutput = 0;
 
 // Display Strings
 char string1[17];
@@ -238,6 +252,13 @@ void Timer0Interrupt (void) interrupt 1
 	RIGHT_PIN=(rightSpeed>pwmcount)?0:1;
 	
 	
+	totalMillis++;
+	if(count++ == 10)
+	{
+		count = 0;
+		msCount++;
+	}
+	
 	msCount++;
 	if(msCount==1000)
 	{
@@ -255,11 +276,7 @@ void Timer0Interrupt (void) interrupt 1
 		}
 	}
 	
-	if(count++ == 10)
-	{
-		count = 0;
-		totalMillis++;
-	}
+	
 }
 
 
@@ -282,12 +299,13 @@ void Setup(void)
 void UpdateString(void)
 {
 
-	if(count++ > LCD_FREQ){
+	if(LCDcount++ > LCD_FREQ && time_update_flag==1){
+		time_update_flag=0;
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
-		sprintf(string2, "E: %i, D: %i", error, dir);
+		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
-		count = 0;
+		LCDcount = 0;
 	}
 }
 
@@ -303,30 +321,22 @@ void UpdateTimeString(void)
 	}	
 }
 
-void driveRight(void)
-{
-	P3_0=0;
-}
+//==============PID CODE=====================
 
-void driveLeft(void)
+void updateOldData(void)
 {
-	P3_1=0;
+	lastError = error;
+	lastPIDtime = totalMillis;
 }
-
-void stopRight(void)
-{
-	P3_0=1;
-}
-
-void stopLeft(void)
-{
-	P3_1=1;
-}
-
 
 void computeError(void)
 {
 	error = LEFT_SENSOR - RIGHT_SENSOR;
+}
+
+/*
+void computeDirection(void)
+{
 	if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
 	{
 		if(error > SIDE_THRESH) //veering to the right
@@ -356,29 +366,84 @@ void computeError(void)
 	{
 		dir = lastDir;
 	}
-	
+}
+*/
 
+void updatePID(void)
+{
+	dT = totalMillis - lastPIDtime;
+
+	updateOldData();
+
+	computeError();
+
+	steerOutput = Kp*error + ((float)Kd*(error-lastError))/(dT);
+	//steerOutput = (int)(Kp*error + Kd*(error - lastError)/((float)dT) + Ki*(error)*dT);
+
+}
+
+
+//=============DRIVING CODE================
+
+int bound(int val, int min, int max)
+{
+	if(val > max)
+	{
+		return max;
+	}
+	else if(val < min)
+	{
+		return min;
+	}
+	else
+	{
+		return val;
+	}
 }
 
 
 void drive(void)
 {
-	computeError();
+	if(LEFT_ON && RIGHT_ON)
+	{
+		updatePID();
+		leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
+		rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
+		if(steerOutput > 0)
+		{
+			dir = 1;
+		}
+		else
+		{
+			dir = -1;
+		}
+	}
+	else if(LEFT_ON && RIGHT_OFF)
+	{
+		leftSpeed = 0;
+		rightSpeed = 100;
+		dir = 1;
+	}
+	else if(LEFT_OFF && RIGHT_ON)
+	{
+		leftSpeed = 100;
+		rightSpeed = 0;
+		dir = -1;
+	}
+	else //both off
+	{
+		if(dir == 1)
+		{
+			leftSpeed = 0;
+			rightSpeed = 100;
+		}
+		else
+		{
+			leftSpeed = 100;
+			rightSpeed = 0;
+		}
+	}
 	
-	if(dir == 1) //veering to the right
-	{
-		stopLeft();
-		driveRight();
-	}
-	else if(dir == -1)
-	{
-		stopRight();
-		driveLeft();
-	}
-	else{
-		driveLeft();
-		driveRight();
-	}
 }
 
 
@@ -389,9 +454,9 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateTimeString();
+		UpdateString();
 		drive();
-		//leftSpeed = 50;
+		//leftSpeed = 70;
 		//rightSpeed = 20;
 	}
 	
