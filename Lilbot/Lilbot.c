@@ -20,6 +20,11 @@
 #define LCD_D0 P2_4
 #define CHARS_PER_LINE 16
 
+//We want timer 0 to interrupt every 100 microseconds ((1/10000Hz)=100 us)
+#define FREQ 10000L
+//The reload value formula comes from the datasheet...
+#define TIMER0_RELOAD_VALUE (65536L-((XTAL)/(2*FREQ)))
+
 // Macro Defs
 //#define 
 #define SIDE_THRESH (30)
@@ -32,9 +37,18 @@
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 
+//Pins
+#define LEFT_PIN P3_0
+#define RIGHT_PIN P3_1
+
 /*
 		SCROLL TO BOTTOM FOR MAIN FUNCTIONS
 */
+
+//These variables are used in the ISR
+volatile unsigned char pwmcount;
+volatile unsigned char leftSpeed;
+volatile unsigned char rightSpeed;
 
 // ======= Delay Funcs =======
 
@@ -150,8 +164,6 @@ void InitPorts(void)
 	P1M2=0;
 	P2M1=0;
 	P2M2=0;
-	P3M1=0;
-	P3M2=0;
 }
 
 
@@ -164,6 +176,8 @@ void InitSerialPort(void)
 	SCON=0x52; //Serial port in mode 1, ren, txrdy, rxempty
 	P1M1=0x00; //Enable pins RxD and Txd
 	P1M2=0x00; //Enable pins RxD and Txd
+	P3M1=0x00; //Enable pins RxD and Txd
+	P3M2=0x00; //Enable pins RxD and Txd
 }
 
 
@@ -181,6 +195,31 @@ void InitADC(void)
 	while((ADCI1&ADCON1)==0); //Wait for first conversion to complete
 }
 
+void InitTimer0 (void)
+{
+	// Initialize timer 0 for ISR 'pwmcounter' below
+	TR0=0; // Stop timer 0
+	TMOD=(TMOD&0xf0)|0x01; // 16-bit timer
+	TH0=TIMER0_RELOAD_VALUE/0x100;
+	TL0=TIMER0_RELOAD_VALUE%0x100;
+	TR0=1; // Start timer 0 (bit 4 in TCON)
+	ET0=1; // Enable timer 0 interrupt
+	EA=1;  // Enable global interrupts
+}
+
+//Interrupt 1 is for timer 0.  This function is executed every 100 us.
+void pwmcounter (void) interrupt 1
+{
+	//Reload the timer
+	TR0=0; // Stop timer 0
+	TH0=TIMER0_RELOAD_VALUE/0x100;
+	TL0=TIMER0_RELOAD_VALUE%0x100;
+	TR0=1; // Start timer 0
+	if(++pwmcount>99) pwmcount=0;
+	LEFT_PIN=(leftSpeed>pwmcount)?0:1; //reverse because 1 turns off the motor
+	RIGHT_PIN=(rightSpeed>pwmcount)?0:1;
+}
+
 
 
 
@@ -193,6 +232,8 @@ void Setup(void)
 	
 	InitSerialPort();
 	InitADC();
+	
+	InitTimer0();
 }
 
 
@@ -297,6 +338,8 @@ void main (void)
 	{
 		//UpdateString();
 		drive();
+		//leftSpeed = 50;
+		//rightSpeed = 20;
 	}
 	
 }
