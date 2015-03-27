@@ -53,6 +53,8 @@ volatile unsigned char rightSpeed;
 // The volatile keyword prevents the compiler from optimizing out these variables
 // that are shared between an interrupt service routine and the main code.
 volatile int msCount=0;
+volatile int tempCount=0;
+volatile unsigned long totalMillis=0;
 volatile unsigned char secs=0, mins=0;
 volatile bit time_update_flag=0;
 
@@ -87,6 +89,7 @@ L1: djnz R0, L1 ; 2 machine cycles-> 2*0.27126us*184=100us
     djnz R2, L3 ; 0.025s*40=1s
     _endasm;
 }
+
 
 // =============== LCD Funcs =============
 
@@ -251,6 +254,12 @@ void Timer0Interrupt (void) interrupt 1
 			}
 		}
 	}
+	
+	if(count++ == 10)
+	{
+		count = 0;
+		totalMillis++;
+	}
 }
 
 
@@ -288,7 +297,9 @@ void UpdateTimeString(void)
 	{
 		time_update_flag=0;
 		sprintf(string1, "Time: %02d:%02d", mins, secs); // Display the clock
+		sprintf(string2, "M:%lu", totalMillis);
 		LCDprint(string1, 1, 1);
+		LCDprint(string2,2,1);
 	}	
 }
 
@@ -378,7 +389,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateString();
+		UpdateTimeString();
 		drive();
 		//leftSpeed = 50;
 		//rightSpeed = 20;
