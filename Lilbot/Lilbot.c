@@ -50,6 +50,12 @@ volatile unsigned char pwmcount;
 volatile unsigned char leftSpeed;
 volatile unsigned char rightSpeed;
 
+// The volatile keyword prevents the compiler from optimizing out these variables
+// that are shared between an interrupt service routine and the main code.
+volatile int msCount=0;
+volatile unsigned char secs=0, mins=0;
+volatile bit time_update_flag=0;
+
 // ======= Delay Funcs =======
 
 void Wait50us (void)
@@ -156,6 +162,15 @@ int error = 0;
 int dir = 0;
 int lastDir = 0;
 
+// Wire Following
+float Kp = 10;
+float Ki = 0;
+float Kd = 0; 
+
+// Display Strings
+char string1[17];
+char string2[17];
+
 void InitPorts(void)
 {
 	P0M1=0;
@@ -208,7 +223,7 @@ void InitTimer0 (void)
 }
 
 //Interrupt 1 is for timer 0.  This function is executed every 100 us.
-void pwmcounter (void) interrupt 1
+void Timer0Interrupt (void) interrupt 1
 {
 	//Reload the timer
 	TR0=0; // Stop timer 0
@@ -218,6 +233,24 @@ void pwmcounter (void) interrupt 1
 	if(++pwmcount>99) pwmcount=0;
 	LEFT_PIN=(leftSpeed>pwmcount)?0:1; //reverse because 1 turns off the motor
 	RIGHT_PIN=(rightSpeed>pwmcount)?0:1;
+	
+	
+	msCount++;
+	if(msCount==1000)
+	{
+		time_update_flag=1;
+		msCount=0;
+		secs++;
+		if(secs==60)
+		{
+			secs=0;
+			mins++;
+			if(mins==60)
+			{
+				mins=0;
+			}
+		}
+	}
 }
 
 
@@ -239,15 +272,24 @@ void Setup(void)
 
 void UpdateString(void)
 {
+
 	if(count++ > LCD_FREQ){
-		char string1[17];
-		char string2[17];
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
 		sprintf(string2, "E: %i, D: %i", error, dir);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		count = 0;
 	}
+}
+
+void UpdateTimeString(void)
+{
+	if(time_update_flag==1) // If the clock has been updated refresh the display
+	{
+		time_update_flag=0;
+		sprintf(string1, "Time: %02d:%02d", mins, secs); // Display the clock
+		LCDprint(string1, 1, 1);
+	}	
 }
 
 void driveRight(void)
@@ -336,7 +378,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		//UpdateString();
+		UpdateString();
 		drive();
 		//leftSpeed = 50;
 		//rightSpeed = 20;
