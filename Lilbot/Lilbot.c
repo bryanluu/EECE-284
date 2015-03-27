@@ -22,11 +22,14 @@
 
 // Macro Defs
 //#define 
-#define SIDE_THRESH (100)
-#define LEFT_OFFSET (0)
-#define RIGHT_OFFSET (30)
+#define SIDE_THRESH (30)
+#define LEFT_OFFSET (15)
+#define RIGHT_OFFSET (0)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
+#define LEFT_THRESH (50)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
+#define RIGHT_THRESH (50)
+#define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 
 /*
@@ -136,6 +139,8 @@ void LCDprint(char * string, unsigned char line, bit clear)
 // ------------ Variable Inits ------------
 int count=0;
 int error = 0;
+int dir = 0;
+int lastDir = 0;
 
 void InitPorts(void)
 {
@@ -160,6 +165,8 @@ void InitSerialPort(void)
 	P1M1=0x00; //Enable pins RxD and Txd
 	P1M2=0x00; //Enable pins RxD and Txd
 }
+
+
 
 void InitADC(void)
 {
@@ -195,7 +202,7 @@ void UpdateString(void)
 		char string1[17];
 		char string2[17];
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
-		sprintf(string2, "Error: %i", error);
+		sprintf(string2, "E: %i, D: %i", error, dir);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		count = 0;
@@ -222,16 +229,54 @@ void stopLeft(void)
 	P3_1=1;
 }
 
-void drive(void)
+
+void computeError(void)
 {
 	error = LEFT_SENSOR - RIGHT_SENSOR;
+	if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		if(error > SIDE_THRESH) //veering to the right
+		{
+			dir = 1; //1 means right
+		}
+		else if(error < -SIDE_THRESH)
+		{
+			dir = -1;
+		}
+		else{
+			dir = 0;
+		}
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR < RIGHT_THRESH)
+	{
+		dir = 1;
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR < LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		dir = -1;
+		lastDir = dir;
+	}
+	else
+	{
+		dir = lastDir;
+	}
 	
-	if(error > SIDE_THRESH) //veering to the right
+
+}
+
+
+void drive(void)
+{
+	computeError();
+	
+	if(dir == 1) //veering to the right
 	{
 		stopLeft();
 		driveRight();
 	}
-	else if(error < -SIDE_THRESH)
+	else if(dir == -1)
 	{
 		stopRight();
 		driveLeft();
@@ -250,7 +295,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateString();
+		//UpdateString();
 		drive();
 	}
 	
