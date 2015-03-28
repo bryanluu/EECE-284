@@ -28,19 +28,19 @@
 // Macro Defs
 //#define 
 #define SIDE_THRESH (30)
-#define LEFT_OFFSET (15)
+#define LEFT_OFFSET (0)
 #define RIGHT_OFFSET (0)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
-#define LEFT_THRESH (50)
+#define LEFT_THRESH (75)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
-#define RIGHT_THRESH (50)
+#define RIGHT_THRESH (75)
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 
 // PID Settings
-#define Kp (0.4)
+#define Kp (10)
 #define Ki (0.0)
-#define Kd (0.2)
+#define Kd (10.0)
 
 // Driving Macros
 #define LEFT_ON (LEFT_SENSOR >= LEFT_THRESH)
@@ -49,7 +49,7 @@
 #define RIGHT_OFF (RIGHT_SENSOR < RIGHT_THRESH)
 
 // Driving Settings
-#define BASE_SPEED (80)
+#define BASE_SPEED (60)
 
 //Pins
 #define LEFT_PIN P3_1
@@ -331,7 +331,34 @@ void updateOldData(void)
 
 void computeError(void)
 {
-	error = LEFT_SENSOR - RIGHT_SENSOR;
+	//error = LEFT_SENSOR - RIGHT_SENSOR;
+	
+	if (LEFT_ON && RIGHT_ON)
+	{
+		error = 0;
+	
+	}
+	else if (LEFT_OFF && RIGHT_ON)
+	{
+		error = -3;
+	
+	}
+	else if (LEFT_ON && RIGHT_OFF)
+	{
+		error = 3;
+	}
+	else
+	{
+		if (lastError < 0 )
+		{
+			error = -5;
+		}
+		else
+		{
+			error = 5;
+		}
+	
+	} 
 }
 
 /*
@@ -404,14 +431,14 @@ int bound(int val, int min, int max)
 
 void drive(void)
 {
-	if(LEFT_ON && RIGHT_ON)
-	{
+	//if(LEFT_ON && RIGHT_ON)
+	//{
 		updatePID();
 		leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
 		rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
-		if(steerOutput > 0)
+		/*if(steerOutput > 0)
 		{
-			dir = 1;
+			dir = 1; // right
 		}
 		else
 		{
@@ -420,29 +447,29 @@ void drive(void)
 	}
 	else if(LEFT_ON && RIGHT_OFF)
 	{
-		leftSpeed = 0;
-		rightSpeed = 100;
+		leftSpeed = 15;
+		rightSpeed = 80;
 		dir = 1;
 	}
 	else if(LEFT_OFF && RIGHT_ON)
 	{
-		leftSpeed = 100;
-		rightSpeed = 0;
+		leftSpeed = 80;
+		rightSpeed = 15;
 		dir = -1;
 	}
 	else //both off
 	{
 		if(dir == 1)
 		{
-			leftSpeed = 0;
-			rightSpeed = 100;
+			leftSpeed = 15;
+			rightSpeed = 80;
 		}
 		else
 		{
-			leftSpeed = 100;
-			rightSpeed = 0;
+			leftSpeed = 80;
+			rightSpeed = 15;
 		}
-	}
+	}*/
 	
 }
 
