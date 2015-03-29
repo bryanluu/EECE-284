@@ -21,24 +21,25 @@
 #define CHARS_PER_LINE 16
 
 //We want timer 0 to interrupt every 100 microseconds ((1/10000Hz)=100 us)
-#define FREQ 10000L
+#define FREQ 1000L
 //The reload value formula comes from the datasheet...
 #define TIMER0_RELOAD_VALUE (65536L-((XTAL)/(2*FREQ)))
 
 // Macro Defs
 //#define 
 #define SIDE_THRESH (30)
-#define LEFT_OFFSET (15)
+#define LEFT_OFFSET (0)
 #define RIGHT_OFFSET (0)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
-#define LEFT_THRESH (50)
+#define LEFT_THRESH (10)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
-#define RIGHT_THRESH (50)
+#define RIGHT_THRESH (10)
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
+#define SCALE (0.2)
 
 // PID Settings
-#define Kp (0.4)
+#define Kp (0.6)
 #define Ki (0.0)
 #define Kd (0.2)
 
@@ -253,13 +254,14 @@ void Timer0Interrupt (void) interrupt 1
 	
 	
 	totalTimeCount++;
+	/*
 	if(count++ == 10)
 	{
 		count = 0;
 		msCount++;
-	}
+	}*/
 	
-	if(msCount==1000)
+	if(msCount++==1000)
 	{
 		time_update_flag=1;
 		msCount=0;
@@ -298,8 +300,7 @@ void Setup(void)
 void UpdateString(void)
 {
 
-	if(LCDcount++ > LCD_FREQ && time_update_flag==1){
-		time_update_flag=0;
+	if(LCDcount++ > LCD_FREQ){
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
 		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
 		LCDprint(string1,1,1);
@@ -406,16 +407,22 @@ void drive(void)
 	if(LEFT_ON && RIGHT_ON)
 	{
 		updatePID();
-		leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
-		rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
+		
 		if(steerOutput > 0)
 		{
 			dir = 1;
+			leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
+			rightSpeed = bound(BASE_SPEED + steerOutput*SCALE, 0, 100);
 		}
 		else
 		{
 			dir = -1;
+			leftSpeed = bound(BASE_SPEED - steerOutput*SCALE, 0, 100);
+			rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
 		}
+		
+		
+		
 	}
 	else if(LEFT_ON && RIGHT_OFF)
 	{
@@ -453,7 +460,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateTimeString();
+		UpdateString();
 		drive();
 		//leftSpeed = 70;
 		//rightSpeed = 20;
