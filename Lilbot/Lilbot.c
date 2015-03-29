@@ -27,20 +27,20 @@
 
 // Macro Defs
 //#define 
-#define SIDE_THRESH (10)
-#define LEFT_OFFSET (0)
+#define SIDE_THRESH (30)
+#define LEFT_OFFSET (15)
 #define RIGHT_OFFSET (0)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
-#define LEFT_THRESH (10)
+#define LEFT_THRESH (50)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
-#define RIGHT_THRESH (10)
+#define RIGHT_THRESH (50)
 #define PULSE_SENSOR (AD1DAT3)
-#define LCD_FREQ (1000)
+#define LCD_FREQ (100)
 
 // PID Settings
-#define Kp (1.0)
+#define Kp (0.4)
 #define Ki (0.0)
-#define Kd (0.3)
+#define Kd (0.2)
 
 // Driving Macros
 #define LEFT_ON (LEFT_SENSOR >= LEFT_THRESH)
@@ -49,7 +49,7 @@
 #define RIGHT_OFF (RIGHT_SENSOR < RIGHT_THRESH)
 
 // Driving Settings
-#define BASE_SPEED (50)
+#define BASE_SPEED (80)
 
 //Pins
 #define LEFT_PIN P3_1
@@ -298,7 +298,8 @@ void Setup(void)
 void UpdateString(void)
 {
 
-	if(LCDcount++ > LCD_FREQ){
+	if(LCDcount++ > LCD_FREQ && time_update_flag==1){
+		time_update_flag=0;
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
 		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
 		LCDprint(string1,1,1);
@@ -312,8 +313,8 @@ void UpdateTimeString(void)
 	if(time_update_flag==1) // If the clock has been updated refresh the display
 	{
 		time_update_flag=0;
-		//sprintf(string1, "V=%5.2f", (AD1DAT3/255.0)*3.3); // Display the voltage at pin P0.2
-		//LCDprint(string1, 1, 1);
+		sprintf(string1, "V=%5.2f", (AD1DAT3/255.0)*3.3); // Display the voltage at pin P0.2
+		LCDprint(string1, 1, 1);
 		sprintf(string2, "Time: %02d:%02d", mins, secs); // Display the clock
 		LCDprint(string2,2,1);
 	}	
@@ -330,20 +331,46 @@ void updateOldData(void)
 void computeError(void)
 {
 	error = LEFT_SENSOR - RIGHT_SENSOR;
-	if(abs(error) < SIDE_THRESH)
-	{
-		error = 0;
-	}
 }
 
+/*
+void computeDirection(void)
+{
+	if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		if(error > SIDE_THRESH) //veering to the right
+		{
+			dir = 1; //1 means right
+		}
+		else if(error < -SIDE_THRESH)
+		{
+			dir = -1;
+		}
+		else{
+			dir = 0;
+		}
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR < RIGHT_THRESH)
+	{
+		dir = 1;
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR < LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		dir = -1;
+		lastDir = dir;
+	}
+	else
+	{
+		dir = lastDir;
+	}
+}
+*/
 
 void updatePID(void)
 {
 	dT = totalTimeCount - lastPIDtime;
-	if(dT == 0)
-	{
-		dT = 1;
-	}
 
 	updateOldData();
 
@@ -379,30 +406,26 @@ void drive(void)
 	if(LEFT_ON && RIGHT_ON)
 	{
 		updatePID();
-		
-	
+		leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
+		rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
 		if(steerOutput > 0)
 		{
-			leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
-			rightSpeed = BASE_SPEED;
 			dir = 1;
 		}
 		else
 		{
-			rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
-			leftSpeed = BASE_SPEED;
 			dir = -1;
 		}
 	}
 	else if(LEFT_ON && RIGHT_OFF)
 	{
 		leftSpeed = 0;
-		rightSpeed = 80;
+		rightSpeed = 100;
 		dir = 1;
 	}
 	else if(LEFT_OFF && RIGHT_ON)
 	{
-		leftSpeed = 80;
+		leftSpeed = 100;
 		rightSpeed = 0;
 		dir = -1;
 	}
@@ -430,7 +453,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateString();
+		UpdateTimeString();
 		drive();
 		//leftSpeed = 70;
 		//rightSpeed = 20;
