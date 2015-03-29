@@ -21,7 +21,7 @@
 #define CHARS_PER_LINE 16
 
 //We want timer 0 to interrupt every 100 microseconds ((1/10000Hz)=100 us)
-#define FREQ 1000L
+#define FREQ 10000L
 //The reload value formula comes from the datasheet...
 #define TIMER0_RELOAD_VALUE (65536L-((XTAL)/(2*FREQ)))
 
@@ -39,7 +39,7 @@
 #define SCALE (0.2)
 
 // PID Settings
-#define Kp (0.6)
+#define Kp (1.0)
 #define Ki (0.0)
 #define Kd (0.2)
 
@@ -254,12 +254,12 @@ void Timer0Interrupt (void) interrupt 1
 	
 	
 	totalTimeCount++;
-	/*
+	
 	if(count++ == 10)
 	{
 		count = 0;
 		msCount++;
-	}*/
+	}
 	
 	if(msCount++==1000)
 	{
@@ -302,7 +302,7 @@ void UpdateString(void)
 
 	if(LCDcount++ > LCD_FREQ){
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
-		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
+		sprintf(string2, "dT: %i", dT);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		LCDcount = 0;
@@ -323,6 +323,7 @@ void UpdateTimeString(void)
 
 //==============PID CODE=====================
 
+/*a
 void updateOldData(void)
 {
 	lastError = error;
@@ -333,6 +334,7 @@ void computeError(void)
 {
 	error = LEFT_SENSOR - RIGHT_SENSOR;
 }
+*/
 
 /*
 void computeDirection(void)
@@ -373,9 +375,10 @@ void updatePID(void)
 {
 	dT = totalTimeCount - lastPIDtime;
 
-	updateOldData();
+	lastError = error;
+	lastPIDtime = totalTimeCount;
 
-	computeError();
+	error = LEFT_SENSOR - RIGHT_SENSOR;
 
 	steerOutput = Kp*error + ((float)Kd*(error-lastError))/(dT);
 	//steerOutput = (int)(Kp*error + Kd*(error - lastError)/((float)dT) + Ki*(error)*dT);
