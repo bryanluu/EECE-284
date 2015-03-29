@@ -27,13 +27,13 @@
 
 // Macro Defs
 //#define 
-#define SIDE_THRESH (30)
-#define LEFT_OFFSET (0)
-#define RIGHT_OFFSET (0)
+#define SIDE_THRESH (10)
+#define LEFT_OFFSET (-20)
+#define RIGHT_OFFSET (20)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
 #define LEFT_THRESH (10)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
-#define RIGHT_THRESH (10)
+#define RIGHT_THRESH (25)
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 #define SCALE (0.2)
@@ -184,6 +184,7 @@ unsigned long lastPIDtime = 0;
 int dir = 0;
 int lastDir = 0;
 int steerOutput = 0;
+int expTurn = 0;
 
 // Display Strings
 char string1[17];
@@ -302,7 +303,7 @@ void UpdateString(void)
 
 	if(LCDcount++ > LCD_FREQ){
 		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
-		sprintf(string2, "dT: %i", dT);
+		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		LCDcount = 0;
@@ -379,6 +380,11 @@ void updatePID(void)
 	lastPIDtime = totalTimeCount;
 
 	error = LEFT_SENSOR - RIGHT_SENSOR;
+	/*
+	if(abs(error) > SIDE_THRESH)
+	{
+		error = 0;
+	}*/
 
 	steerOutput = Kp*error + ((float)Kd*(error-lastError))/(dT);
 	//steerOutput = (int)(Kp*error + Kd*(error - lastError)/((float)dT) + Ki*(error)*dT);
@@ -423,8 +429,6 @@ void drive(void)
 			leftSpeed = bound(BASE_SPEED - steerOutput*SCALE, 0, 100);
 			rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
 		}
-		
-		
 		
 	}
 	else if(LEFT_ON && RIGHT_OFF)
