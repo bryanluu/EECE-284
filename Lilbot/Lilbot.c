@@ -68,7 +68,7 @@ volatile unsigned char rightSpeed;
 // that are shared between an interrupt service routine and the main code.
 volatile int msCount=0;
 volatile int tempCount=0;
-volatile unsigned long totalMillis=0;
+volatile unsigned long totalTimeCount=0;
 volatile unsigned char secs=0, mins=0;
 volatile bit time_update_flag=0;
 
@@ -252,14 +252,13 @@ void Timer0Interrupt (void) interrupt 1
 	RIGHT_PIN=(rightSpeed>pwmcount)?0:1;
 	
 	
-	totalMillis++;
+	totalTimeCount++;
 	if(count++ == 10)
 	{
 		count = 0;
 		msCount++;
 	}
 	
-	msCount++;
 	if(msCount==1000)
 	{
 		time_update_flag=1;
@@ -314,9 +313,9 @@ void UpdateTimeString(void)
 	if(time_update_flag==1) // If the clock has been updated refresh the display
 	{
 		time_update_flag=0;
-		sprintf(string1, "Time: %02d:%02d", mins, secs); // Display the clock
-		sprintf(string2, "M:%lu", totalMillis);
+		sprintf(string1, "V=%5.2f", (AD1DAT3/255.0)*3.3); // Display the voltage at pin P0.2
 		LCDprint(string1, 1, 1);
+		sprintf(string2, "Time: %02d:%02d", mins, secs); // Display the clock
 		LCDprint(string2,2,1);
 	}	
 }
@@ -326,7 +325,7 @@ void UpdateTimeString(void)
 void updateOldData(void)
 {
 	lastError = error;
-	lastPIDtime = totalMillis;
+	lastPIDtime = totalTimeCount;
 }
 
 void computeError(void)
@@ -398,7 +397,7 @@ void computeDirection(void)
 
 void updatePID(void)
 {
-	dT = totalMillis - lastPIDtime;
+	dT = totalTimeCount - lastPIDtime;
 
 	updateOldData();
 
@@ -481,7 +480,7 @@ void main (void)
 	// LOOP	
 	while(1)
 	{
-		UpdateString();
+		UpdateTimeString();
 		drive();
 		//leftSpeed = 70;
 		//rightSpeed = 20;
