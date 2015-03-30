@@ -58,6 +58,8 @@
 #define PULSE_OFF (PULSE_SENSOR < PULSE_THRESH)
 #define RISING_PULSE (pulsed == 1 && lastPulse == 0)
 #define FALLING_PULSE (pulsed == 0 && lastPulse == 1)
+#define PULSE_DEBOUNCE_TIME (7000) //in 0.1 ms
+#define TURN_TIME (500)
 
 //Pins
 #define LEFT_PIN P3_1
@@ -193,9 +195,12 @@ char steerOutput = 0;
 //pulse
 bit pulsed = 0;
 bit lastPulse = 0;
-char pulseCount = 0;
+unsigned char pulseCount = 0;
 char expTurn = 0;
-unsigned char pulseStartTime = 0; //in secs
+unsigned long pulseStartTime = 0; //in secs
+
+// state
+char state = -1; // -1 means starting, 0 means started, 1 means past first turn, 2 means past 2nd turn, etc...
 
 // Display Strings
 char string1[17];
@@ -330,7 +335,7 @@ void printPulseInfo(void)
 
 	if(LCDcount++ > LCD_FREQ){
 		sprintf(string1, "P: %i, Pc: %i", (int)PULSE_SENSOR, (int)pulseCount);
-		sprintf(string2, "T: %i",  (int)expTurn);
+		sprintf(string2, "E: %i, S: %i",  (int)expTurn, (int)state);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		LCDcount = 0;
@@ -370,35 +375,6 @@ void updatePID(void)
 	//steerOutput = (int)(Kp*error + Kd*(error - lastError)/((float)dT) + Ki*(error)*dT);
 
 }
-
-//==============PULSE COUNT CODE==================
-
-void updatePulse(void)
-{
-	lastPulse = pulsed;
-	pulsed = PULSE_ON;
-}
-
-void checkForPulse(void)
-{
-	updatePulse();
-	if(RISING_PULSE)
-	{
-			lastPulse = 0;
-			pulsed = 1;
-			pulseStartTime = secs;
-	}
-	else if(FALLING_PULSE)
-	{
-		if(PULSE_OFF) //pulse drops off
-		{
-			lastPulse = 1;
-			pulsed = 0;
-			pulseCount++;
-		}
-	}
-}
-
 
 
 //=============DRIVING CODE================
@@ -468,6 +444,76 @@ void drive(void)
 	
 }
 
+//==============PULSE COUNT CODE==================
+
+void updatePulse(void)
+{
+	lastPulse = pulsed;
+	pulsed = PULSE_ON;
+}
+
+void checkForPulse(void)
+{
+	updatePulse();
+	if(RISING_PULSE)
+	{
+			lastPulse = 0;
+			pulsed = 1;
+			pulseStartTime = totalTimeCount;
+	}
+	else if(FALLING_PULSE)
+	{
+		if(PULSE_OFF) //pulse drops off
+		{
+			lastPulse = 1;
+			pulsed = 0;
+			pulseCount++;
+		}
+	}
+}
+
+//Returns the next number of pulses
+unsigned char getPulses()
+{
+	do{
+		printPulseInfo();
+		checkForPulse();
+		drive();
+	}while(totalTimeCount - pulseStartTime <= PULSE_DEBOUNCE_TIME);
+	
+	return pulseCount;
+}
+
+void turnOnNextPulse()
+{
+	while(!FALLING_PULSE)
+	{
+		printPulseInfo();
+		drive();
+		checkForPulse();
+	}
+	
+	if(expTurn == 1)
+	{
+		leftSpeed = 0;
+		rightSpeed = 100;
+	}
+	else if(expTurn == -1)
+	{
+		leftSpeed = 100;
+		rightSpeed = 0;
+	}
+	else
+	{
+		return;
+	}
+	
+	waitms(TURN_TIME);
+	expTurn = 0;
+	state++;
+}
+
+
 //===========================MAIN===========================
 
 void main (void)
@@ -479,40 +525,52 @@ void main (void)
 	Wait1S();
 	
 	
-	//Start
-	do{
+	//Start only when 4 pulses occur within a second of each other
+	while(getPulses() < 4)
+	{
+	}
+	
+	state++;
+	pulseCount = 0;
+	pulseStartTime = totalTimeCount;
+	
+	while(totalTimeCount - pulseStartTime < 40000){
 		printPulseInfo();
-		checkForPulse();
 		drive();
-	}while(pulseCount < 4);
+	} //ignore first 2 pulses
+	
+	
+	while(1)
+	{
 	
 	pulseCount = 0;
-	pulseStartTime = secs;
-	
-	// skip the first 2 glitchy pulses
-	do{
-		printPulseInfo();
-		drive();
-	}while(secs - pulseStartTime < 4);
-	
-	pulseStartTime = secs;
-	
-	do{
-		printPulseInfo();
-		checkForPulse();
-		drive();
-		if(secs - pulseStartTime >= 1)
+	pulseStartTime = totalTimeCount;
+	while(getPulses() < 2)
+	{
+		if(totalTimeCount - pulseStartTime > 10000)
 		{
-			pulseCount = 0; //signifies that you don't count that pulse
-			expTurn = 0;
-			break;
+			pulseCount = 0;
+			continue;
 		}
-	}while(pulseCount < 2);
+	}
 	
-	if(pulseCount == 2) expTurn = 1;
+	if(pulseCount == 2) 
+	{
+		expTurn = 1;
+		pulseCount = 0;
+	}
+	else if(pulseCount == 3)
+	{
+		expTurn = -1;
+		pulseCount = 0;
+	}
+	
+	turnOnNextPulse();
+	
+	}
 	
 	
-	// LOOP	
+	/* LOOP	
 	while(1)
 	{
 		printPulseInfo();
@@ -520,7 +578,7 @@ void main (void)
 		drive();
 		//leftSpeed = 70;
 		//rightSpeed = 20;
-	}
+	}*/
 	
 }
 
