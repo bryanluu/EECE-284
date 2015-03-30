@@ -28,12 +28,12 @@
 // Macro Defs
 //#define 
 #define SIDE_THRESH (10)
-#define LEFT_OFFSET (-20)
-#define RIGHT_OFFSET (20)
+#define LEFT_OFFSET (0)
+#define RIGHT_OFFSET (0)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
 #define LEFT_THRESH (10)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
-#define RIGHT_THRESH (25)
+#define RIGHT_THRESH (10)
 #define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 #define SCALE (0.2)
