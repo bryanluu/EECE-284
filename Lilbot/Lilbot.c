@@ -47,15 +47,13 @@
 #define RIGHT_ON (RIGHT_SENSOR >= RIGHT_THRESH)
 #define LEFT_OFF (LEFT_SENSOR < LEFT_THRESH)
 #define RIGHT_OFF (RIGHT_SENSOR < RIGHT_THRESH)
-#define LEFT_DIRECTION (1)
-#define RIGHT_DIRECTION (-1)
 
 // Driving Settings
 #define BASE_SPEED (80)
 
 // Pulse Settings
 #define PULSE_SENSOR (AD1DAT3)
-#define PULSE_THRESH (90)
+#define PULSE_THRESH (150)
 #define PULSE_ON (PULSE_SENSOR >= PULSE_THRESH && (LEFT_ON && RIGHT_ON))
 #define PULSE_OFF (PULSE_SENSOR < PULSE_THRESH)
 #define RISING_PULSE (pulsed == 1 && lastPulse == 0)
@@ -400,26 +398,19 @@ int bound(int val, int min, int max)
 
 void drive(void)
 {
-	if(pulsed == 1)
-	{
-		leftSpeed = BASE_SPEED-10;
-		rightSpeed = BASE_SPEED;
-		return;
-	}
-
 	if(LEFT_ON && RIGHT_ON)
 	{
 		updatePID();
 		
 		if(steerOutput > 0)
 		{
-			dir = LEFT_DIRECTION;
+			dir = 1;
 			leftSpeed = bound(BASE_SPEED - steerOutput, 0, 100);
 			rightSpeed = bound(BASE_SPEED + steerOutput*SCALE, 0, 100);
 		}
 		else
 		{
-			dir = RIGHT_DIRECTION;
+			dir = -1;
 			leftSpeed = bound(BASE_SPEED - steerOutput*SCALE, 0, 100);
 			rightSpeed = bound(BASE_SPEED + steerOutput, 0, 100);
 		}
@@ -429,17 +420,17 @@ void drive(void)
 	{
 		leftSpeed = 0;
 		rightSpeed = 100;
-		dir = LEFT_DIRECTION;
+		dir = 1;
 	}
 	else if(LEFT_OFF && RIGHT_ON)
 	{
 		leftSpeed = 100;
 		rightSpeed = 0;
-		dir = RIGHT_DIRECTION;
+		dir = -1;
 	}
 	else //both off
 	{
-		if(dir == LEFT_DIRECTION)
+		if(dir == 1)
 		{
 			leftSpeed = 0;
 			rightSpeed = 100;
@@ -493,21 +484,21 @@ unsigned char getPulses()
 	return pulseCount;
 }
 
-void turnOnNextPulse(char expDir)
+void turnOnNextPulse()
 {
 	while(!FALLING_PULSE)
 	{
 		printPulseInfo();
-		checkForPulse();
 		drive();
+		checkForPulse();
 	}
 	
-	if(expDir == 1)
+	if(expTurn == 1)
 	{
 		leftSpeed = 0;
 		rightSpeed = 100;
 	}
-	else if(expDir == -1)
+	else if(expTurn == -1)
 	{
 		leftSpeed = 100;
 		rightSpeed = 0;
@@ -518,6 +509,7 @@ void turnOnNextPulse(char expDir)
 	}
 	
 	waitms(TURN_TIME);
+	expTurn = 0;
 	state++;
 }
 
@@ -539,34 +531,43 @@ void main (void)
 	}
 	
 	state++;
+	pulseCount = 0;
 	pulseStartTime = totalTimeCount;
 	
+	while(totalTimeCount - pulseStartTime < 40000){
+		printPulseInfo();
+		drive();
+	} //ignore first 2 pulses
 	
 	
 	while(1)
 	{
 	
-		getPulses();
-	
-		if(pulseCount == 7 || pulseCount == 22) 
+	pulseCount = 0;
+	pulseStartTime = totalTimeCount;
+	while(getPulses() < 2)
+	{
+		if(totalTimeCount - pulseStartTime > 10000)
 		{
-			turnOnNextPulse(LEFT_DIRECTION);
-			state++;
+			pulseCount = 0;
+			continue;
 		}
-		else if(pulseCount == 13 || pulseCount == 19)
-		{
-			turnOnNextPulse(RIGHT_DIRECTION);
-			state++;
-		}
-		else if(pulseCount > 26)
-		{
-			break;
-		}
-	
 	}
 	
-	leftSpeed = 0;
-	rightSpeed = 0;
+	if(pulseCount == 2) 
+	{
+		expTurn = 1;
+		pulseCount = 0;
+	}
+	else if(pulseCount == 3)
+	{
+		expTurn = -1;
+		pulseCount = 0;
+	}
+	
+	turnOnNextPulse();
+	
+	}
 	
 	
 	/* LOOP	
