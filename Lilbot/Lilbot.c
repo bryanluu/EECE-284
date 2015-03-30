@@ -56,6 +56,8 @@
 #define PULSE_THRESH (150)
 #define PULSE_ON (PULSE_SENSOR >= PULSE_THRESH && (LEFT_ON && RIGHT_ON))
 #define PULSE_OFF (PULSE_SENSOR < PULSE_THRESH)
+#define RISING_PULSE (pulsed == 1 && lastPulse == 0)
+#define FALLING_PULSE (pulsed == 0 && lastPulse == 1)
 
 //Pins
 #define LEFT_PIN P3_1
@@ -73,7 +75,6 @@ volatile unsigned char rightSpeed;
 // The volatile keyword prevents the compiler from optimizing out these variables
 // that are shared between an interrupt service routine and the main code.
 volatile int msCount=0;
-volatile int tempCount=0;
 volatile unsigned long totalTimeCount=0;
 volatile unsigned char secs=0, mins=0;
 volatile bit time_update_flag=0;
@@ -188,16 +189,13 @@ short dT = 0;
 unsigned long lastPIDtime = 0;
 char dir = 0;
 char steerOutput = 0;
-int expTurn = 0;
 
 //pulse
+bit pulsed = 0;
 bit lastPulse = 0;
-unsigned char pulseCount = 0;
-unsigned char currLP = 0;
-unsigned char LP1 = 0;
-unsigned char LP2 = 0;
-unsigned char maxPulse = 0;
-unsigned char minPulse = 255;
+char pulseCount = 0;
+char expTurn = 0;
+unsigned char pulseStartTime = 0; //in secs
 
 // Display Strings
 char string1[17];
@@ -311,6 +309,7 @@ void Setup(void)
 	
 	leftSpeed = 0;
 	rightSpeed = 0;
+	pulseCount = 0;
 }
 
 
@@ -331,7 +330,7 @@ void printPulseInfo(void)
 
 	if(LCDcount++ > LCD_FREQ){
 		sprintf(string1, "P: %i, Pc: %i", (int)PULSE_SENSOR, (int)pulseCount);
-		sprintf(string2, "m: %i, M: %i", (int)minPulse, (int)maxPulse );
+		sprintf(string2, "T: %i",  (int)expTurn);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		LCDcount = 0;
@@ -374,32 +373,32 @@ void updatePID(void)
 
 //==============PULSE COUNT CODE==================
 
-void readPulse(void)
+void updatePulse(void)
 {
-	LP2 = LP1;
-	LP1 = currLP;
-	currLP = (unsigned char) AD1DAT3;
-	if(PULSE_SENSOR > maxPulse) maxPulse = PULSE_SENSOR;
-	minPulse = PULSE_SENSOR;
+	lastPulse = pulsed;
+	pulsed = PULSE_ON;
 }
 
 void checkForPulse(void)
 {
-	readPulse();
-	if(lastPulse == 0)
+	updatePulse();
+	if(RISING_PULSE)
 	{
-		if(PULSE_ON) lastPulse = 1;
-	}
-	else
-	{
-		if(PULSE_SENSOR < minPulse) minPulse = PULSE_SENSOR;
-		if(PULSE_OFF)
-		{
 			lastPulse = 0;
+			pulsed = 1;
+			pulseStartTime = secs;
+	}
+	else if(FALLING_PULSE)
+	{
+		if(PULSE_OFF) //pulse drops off
+		{
+			lastPulse = 1;
+			pulsed = 0;
 			pulseCount++;
 		}
 	}
 }
+
 
 
 //=============DRIVING CODE================
@@ -478,6 +477,40 @@ void main (void)
 	sprintf(string1, "Initializing...");
 	LCDprint(string1,1,1);
 	Wait1S();
+	
+	
+	//Start
+	do{
+		printPulseInfo();
+		checkForPulse();
+		drive();
+	}while(pulseCount < 4);
+	
+	pulseCount = 0;
+	pulseStartTime = secs;
+	
+	// skip the first 2 glitchy pulses
+	do{
+		printPulseInfo();
+		drive();
+	}while(secs - pulseStartTime < 4);
+	
+	pulseStartTime = secs;
+	
+	do{
+		printPulseInfo();
+		checkForPulse();
+		drive();
+		if(secs - pulseStartTime >= 1)
+		{
+			pulseCount = 0; //signifies that you don't count that pulse
+			expTurn = 0;
+			break;
+		}
+	}while(pulseCount < 2);
+	
+	if(pulseCount == 2) expTurn = 1;
+	
 	
 	// LOOP	
 	while(1)
