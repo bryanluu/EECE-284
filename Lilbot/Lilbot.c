@@ -28,12 +28,13 @@
 // Macro Defs
 //#define 
 #define SIDE_THRESH (10)
-#define LEFT_OFFSET (0)
-#define RIGHT_OFFSET (0)
+#define LEFT_OFFSET (-20)
+#define RIGHT_OFFSET (20)
 #define LEFT_SENSOR (AD1DAT0 + LEFT_OFFSET)
 #define LEFT_THRESH (10)
 #define RIGHT_SENSOR (AD1DAT2 + RIGHT_OFFSET)
 #define RIGHT_THRESH (25)
+#define PULSE_SENSOR (AD1DAT3)
 #define LCD_FREQ (100)
 #define SCALE (0.2)
 
@@ -42,12 +43,6 @@
 #define Ki (0.0)
 #define Kd (0.2)
 
-// Pulse Settings
-#define PULSE_SENSOR (AD1DAT3)
-#define PULSE_THRESH (15)
-#define PULSE_ON (PULSE_SENSOR >= PULSE_THRESH)
-#define PULSE_OFF (PULSE_SENSOR < PULSE_THRESH)
-
 // Driving Macros
 #define LEFT_ON (LEFT_SENSOR >= LEFT_THRESH)
 #define RIGHT_ON (RIGHT_SENSOR >= RIGHT_THRESH)
@@ -55,14 +50,11 @@
 #define RIGHT_OFF (RIGHT_SENSOR < RIGHT_THRESH)
 
 // Driving Settings
-#define BASE_SPEED (90)
+#define BASE_SPEED (80)
 
 //Pins
 #define LEFT_PIN P3_1
 #define RIGHT_PIN P3_0
-
-//
-#define STABLE_TIME (1000);
 
 /*
 		SCROLL TO BOTTOM FOR MAIN FUNCTIONS
@@ -185,15 +177,14 @@ void LCDprint(char * string, unsigned char line, bit clear)
 // ------------ Variable Inits ------------
 int count=0;
 int LCDcount=0;
-unsigned char error = 0;
-unsigned char lastError = 0;
+int error = 0;
+int lastError = 0;
 int dT = 0;
 unsigned long lastPIDtime = 0;
-unsigned char dir = 0;
+int dir = 0;
+int lastDir = 0;
 int steerOutput = 0;
-unsigned char expTurn = 0;
-bit lastPulse = 0;
-unsigned char pulseCount = 0;
+int expTurn = 0;
 
 // Display Strings
 char string1[17];
@@ -307,31 +298,19 @@ void Setup(void)
 }
 
 
-void printDriveInfo(void)
+void UpdateString(void)
 {
 
 	if(LCDcount++ > LCD_FREQ){
-		sprintf(string1, "L: %i, R: %i", (int)LEFT_SENSOR, (int)RIGHT_SENSOR);
-		sprintf(string2, "P: %i, C: %i", (int)PULSE_SENSOR, (int)pulseCount);
+		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
+		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
 		LCDprint(string1,1,1);
 		LCDprint(string2,2,1);
 		LCDcount = 0;
 	}
 }
 
-void printPulseInfo(void)
-{
-
-	if(LCDcount++ > LCD_FREQ){
-		sprintf(string1, "P: %i", (int)PULSE_SENSOR);
-		sprintf(string2, "Pc: %i", (int)pulseCount);
-		LCDprint(string1,1,1);
-		LCDprint(string2,2,1);
-		LCDcount = 0;
-	}
-}
-
-void printTimeInfo(void)
+void UpdateTimeString(void)
 {
 	if(time_update_flag==1) // If the clock has been updated refresh the display
 	{
@@ -344,6 +323,54 @@ void printTimeInfo(void)
 }
 
 //==============PID CODE=====================
+
+/*a
+void updateOldData(void)
+{
+	lastError = error;
+	lastPIDtime = totalTimeCount;
+}
+
+void computeError(void)
+{
+	error = LEFT_SENSOR - RIGHT_SENSOR;
+}
+*/
+
+/*
+void computeDirection(void)
+{
+	if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		if(error > SIDE_THRESH) //veering to the right
+		{
+			dir = 1; //1 means right
+		}
+		else if(error < -SIDE_THRESH)
+		{
+			dir = -1;
+		}
+		else{
+			dir = 0;
+		}
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR >= LEFT_THRESH && RIGHT_SENSOR < RIGHT_THRESH)
+	{
+		dir = 1;
+		lastDir = dir;
+	}
+	else if(LEFT_SENSOR < LEFT_THRESH && RIGHT_SENSOR >= RIGHT_THRESH)
+	{
+		dir = -1;
+		lastDir = dir;
+	}
+	else
+	{
+		dir = lastDir;
+	}
+}
+*/
 
 void updatePID(void)
 {
@@ -364,23 +391,6 @@ void updatePID(void)
 
 }
 
-//==============PULSE COUNT CODE==================
-
-void checkForPulse(void)
-{
-	if(lastPulse == 0)
-	{
-		if(PULSE_ON) lastPulse = 1;
-	}
-	else
-	{
-		if(PULSE_OFF)
-		{
-			lastPulse = 0;
-			pulseCount++;
-		}
-	}
-}
 
 //=============DRIVING CODE================
 
@@ -454,15 +464,10 @@ void main (void)
 {
 	Setup();
 	
-	sprintf(string1, "Initializing...");
-	LCDprint(string1,1,1);
-	Wait1S();
-	
 	// LOOP	
 	while(1)
 	{
-		printDriveInfo();
-		checkForPulse();
+		UpdateString();
 		drive();
 		//leftSpeed = 70;
 		//rightSpeed = 20;
