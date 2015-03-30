@@ -55,7 +55,7 @@
 
 // Pulse Settings
 #define PULSE_SENSOR (AD1DAT3)
-#define PULSE_THRESH (90)
+#define PULSE_THRESH (80)
 #define PULSE_ON (PULSE_SENSOR >= PULSE_THRESH && (LEFT_ON && RIGHT_ON))
 #define PULSE_OFF (PULSE_SENSOR < PULSE_THRESH)
 #define RISING_PULSE (pulsed == 1 && lastPulse == 0)
@@ -203,6 +203,8 @@ unsigned long pulseStartTime = 0; //in secs
 
 // state
 char state = -1; // -1 means starting, 0 means started, 1 means past first turn, 2 means past 2nd turn, etc...
+bit started = 0;
+
 
 // Display Strings
 char string1[17];
@@ -280,7 +282,7 @@ void Timer0Interrupt (void) interrupt 1
 		msCount++;
 	}
 	
-	if(msCount++==1000)
+	if(msCount==1000)
 	{
 		time_update_flag=1;
 		msCount=0;
@@ -324,9 +326,9 @@ void UpdateString(void)
 {
 
 	if(LCDcount++ > LCD_FREQ){
-		sprintf(string1, "L: %i, R: %i", LEFT_SENSOR, RIGHT_SENSOR);
-		sprintf(string2, "L: %i, R: %i", leftSpeed, rightSpeed);
+		sprintf(string1, "Pc: %i, S: %i", (int)pulseCount, (int)state);
 		LCDprint(string1,1,1);
+		sprintf(string2, "Time: %02d:%02d", mins, secs); // Display the clock
 		LCDprint(string2,2,1);
 		LCDcount = 0;
 	}
@@ -400,12 +402,6 @@ int bound(int val, int min, int max)
 
 void drive(void)
 {
-	if(pulsed == 1)
-	{
-		leftSpeed = BASE_SPEED-10;
-		rightSpeed = BASE_SPEED;
-		return;
-	}
 
 	if(LEFT_ON && RIGHT_ON)
 	{
@@ -485,7 +481,7 @@ void checkForPulse(void)
 unsigned char getPulses()
 {
 	do{
-		printPulseInfo();
+		UpdateString();
 		checkForPulse();
 		drive();
 	}while(totalTimeCount - pulseStartTime <= PULSE_DEBOUNCE_TIME);
@@ -495,9 +491,9 @@ unsigned char getPulses()
 
 void turnOnNextPulse(char expDir)
 {
-	while(!FALLING_PULSE)
+	while(!RISING_PULSE)
 	{
-		printPulseInfo();
+		UpdateString();
 		checkForPulse();
 		drive();
 	}
@@ -532,52 +528,78 @@ void main (void)
 	LCDprint(string1,1,1);
 	Wait1S();
 	
-	
-	//Start only when 4 pulses occur within a second of each other
-	while(getPulses() < 4)
-	{
-	}
-	
+	while(getPulses() < 3){}
 	state++;
-	pulseStartTime = totalTimeCount;
-	
-	
+	started = 1;
+	msCount = 0;
+	secs = 0;
+	mins = 0;
+	pulseCount = 0;
 	
 	while(1)
 	{
-	
-		getPulses();
-	
-		if(pulseCount == 7 || pulseCount == 22) 
-		{
-			turnOnNextPulse(LEFT_DIRECTION);
-			state++;
-		}
-		else if(pulseCount == 13 || pulseCount == 19)
-		{
-			turnOnNextPulse(RIGHT_DIRECTION);
-			state++;
-		}
-		else if(pulseCount > 26)
+		UpdateString();
+		drive();
+		
+		if(state == 4 && mins > 0 && secs > 15)
 		{
 			break;
 		}
+		else if(state == 3 && secs > 56)
+		{
+			pulseCount = 0;
+			while(getPulses() < 2) {}
+			
+			pulseStartTime = totalTimeCount;
+			while(totalTimeCount - pulseStartTime < 2000)
+			{
+				UpdateString();
+				drive();
+			}
+			
+			turnOnNextPulse(LEFT_DIRECTION);
+		}
+		else if(state == 2 && secs > 31)
+		{
+			pulseCount = 0;
+			while(getPulses() < 3) {}
+			pulseStartTime = totalTimeCount;
+			while(totalTimeCount - pulseStartTime < 2000)
+			{
+				UpdateString();
+				drive();
+			}
+			
+			turnOnNextPulse(RIGHT_DIRECTION);
+			waitms(200);
+		}
+		else if(state == 1 && secs > 15)
+		{
+			pulseCount = 0;
+			while(getPulses() < 2) {}
+			pulseStartTime = totalTimeCount;
+			while(totalTimeCount - pulseStartTime < 2000)
+			{
+				UpdateString();
+				drive();
+			}
+			turnOnNextPulse(RIGHT_DIRECTION);
+		}
+		else if(state == 0 && secs > 4)
+		{
+			pulseCount = 0;
+			while(getPulses() < 2) {}
+			turnOnNextPulse(LEFT_DIRECTION);
+		}
+		
 	
 	}
 	
+	pulseCount = 0;
+	while(getPulses() < 3){}
+	
 	leftSpeed = 0;
 	rightSpeed = 0;
-	
-	
-	/* LOOP	
-	while(1)
-	{
-		printPulseInfo();
-		checkForPulse();
-		drive();
-		//leftSpeed = 70;
-		//rightSpeed = 20;
-	}*/
 	
 }
 
